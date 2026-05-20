@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>실시간 뉴스 대시보드</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0d0f14;
+    --surface: #161920;
+    --surface2: #1e2230;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #e8eaf2;
+    --text2: #8b90a8;
+    --text3: #555b72;
+    --accent1: #4f8ef7;
+    --accent1-bg: rgba(79,142,247,0.12);
+    --accent2: #2ecf8e;
+    --accent2-bg: rgba(46,207,142,0.10);
+    --accent3: #f97b4f;
+    --accent3-bg: rgba(249,123,79,0.10);
+    --red: #f74f5e;
+    --amber: #f5c542;
+    --radius: 12px;
+    --radius-sm: 7px;
+    --mono: 'DM Mono', monospace;
+    --sans: 'Noto Sans KR', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    border-bottom: 0.5px solid var(--border2);
+    background: var(--surface);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-left { display: flex; align-items: center; gap: 12px; }
+  .logo { font-size: 16px; font-weight: 700; letter-spacing: -0.5px; color: var(--text); }
+  .logo span { color: var(--accent1); }
+  .live-badge {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 11px; font-family: var(--mono);
+    color: var(--accent2); background: var(--accent2-bg);
+    border: 0.5px solid var(--accent2); border-radius: 20px; padding: 3px 9px;
+  }
+  .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent2); animation: pulse 1.4s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .last-update { font-size: 12px; font-family: var(--mono); color: var(--text3); }
+  .demo-badge {
+    font-size: 11px; font-family: var(--mono);
+    color: var(--amber); background: rgba(245,197,66,0.1);
+    border: 0.5px solid var(--amber); border-radius: 20px; padding: 3px 9px;
+  }
+
+  /* ── SETUP PANEL ── */
+  .setup-panel {
+    background: var(--surface);
+    border-bottom: 0.5px solid var(--border2);
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    max-height: 0;
+  }
+  .setup-panel.open { max-height: 400px; }
+  .setup-inner { padding: 20px 24px; }
+  .setup-title { font-size: 13px; font-weight: 700; color: var(--accent1); margin-bottom: 4px; }
+  .setup-sub { font-size: 12px; color: var(--text3); margin-bottom: 16px; line-height: 1.6; }
+  .setup-sub a { color: var(--accent1); text-decoration: none; }
+  .setup-sub a:hover { text-decoration: underline; }
+
+  .setup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media(max-width:600px){ .setup-grid { grid-template-columns: 1fr; } }
+  .field label { display: block; font-size: 11px; color: var(--text2); margin-bottom: 5px; font-family: var(--mono); }
+  .field input, .field select {
+    width: 100%; background: var(--bg); border: 0.5px solid var(--border2);
+    color: var(--text); font-size: 13px; font-family: var(--mono);
+    padding: 8px 12px; border-radius: var(--radius-sm); outline: none; transition: border 0.2s;
+  }
+  .field input:focus { border-color: var(--accent1); }
+  .field input::placeholder { color: var(--text3); }
+  .setup-actions { display: flex; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
+
+  /* ── BUTTONS ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500; font-family: var(--sans);
+    padding: 7px 14px; border-radius: var(--radius-sm);
+    border: 0.5px solid var(--border2); background: var(--surface2);
+    color: var(--text); cursor: pointer; transition: all 0.15s; white-space: nowrap;
+  }
+  .btn:hover { background: var(--border2); border-color: var(--text3); }
+  .btn.primary { background: var(--accent1); border-color: var(--accent1); color: #fff; }
+  .btn.primary:hover { opacity: 0.88; }
+  .btn.sm { padding: 4px 9px; font-size: 11px; }
+
+  /* ── POLL BAR ── */
+  .poll-bar { height: 2px; background: var(--border); position: relative; overflow: hidden; }
+  .poll-progress { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent1); transition: width 1s linear; }
+
+  /* ── MAIN GRID ── */
+  .main { padding: 20px 20px 40px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  @media (max-width: 900px) { .grid { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 600px) { .grid { grid-template-columns: 1fr; } }
+
+  /* ── COLUMN ── */
+  .col {
+    background: var(--surface); border-radius: var(--radius);
+    border: 0.5px solid var(--border); display: flex;
+    flex-direction: column; min-height: 600px; overflow: hidden;
+  }
+  .col-header {
+    padding: 14px 16px 12px; border-bottom: 0.5px solid var(--border);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+  .col-title-row { display: flex; align-items: center; justify-content: space-between; }
+  .col-title { font-size: 13px; font-weight: 700; letter-spacing: -0.2px; display: flex; align-items: center; gap: 7px; }
+  .col-title .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .col1 .dot { background: var(--accent1); }
+  .col2 .dot { background: var(--accent2); }
+  .col3 .dot { background: var(--accent3); }
+  .col-count { font-size: 11px; font-family: var(--mono); color: var(--text3); background: var(--surface2); padding: 2px 7px; border-radius: 20px; }
+
+  /* tags */
+  .tags-wrap { display: flex; flex-wrap: wrap; gap: 5px; }
+  .tag { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-family: var(--mono); padding: 3px 8px; border-radius: 20px; border: 0.5px solid var(--border2); background: var(--surface2); color: var(--text2); }
+  .col1 .tag { border-color: rgba(79,142,247,0.3); color: var(--accent1); background: var(--accent1-bg); }
+  .col2 .tag { border-color: rgba(46,207,142,0.3); color: var(--accent2); background: var(--accent2-bg); }
+  .col3 .tag { border-color: rgba(249,123,79,0.3); color: var(--accent3); background: var(--accent3-bg); }
+  .tag-del { cursor: pointer; opacity: 0.5; font-size: 13px; line-height: 1; margin-left: 1px; transition: opacity 0.15s; }
+  .tag-del:hover { opacity: 1; }
+
+  /* add keyword */
+  .add-kw { display: flex; gap: 5px; margin-top: 2px; }
+  .add-kw input {
+    flex: 1; background: var(--bg); border: 0.5px solid var(--border2);
+    color: var(--text); font-size: 12px; font-family: var(--mono);
+    padding: 5px 9px; border-radius: var(--radius-sm); outline: none;
+  }
+  .add-kw input:focus { border-color: var(--accent1); }
+  .add-kw input::placeholder { color: var(--text3); }
+
+  /* ── NEWS LIST ── */
+  .news-list { flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 1px; }
+  .news-list::-webkit-scrollbar { width: 4px; }
+  .news-list::-webkit-scrollbar-track { background: transparent; }
+  .news-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+
+  .news-card {
+    padding: 11px 12px; border-radius: var(--radius-sm); cursor: pointer;
+    border: 0.5px solid transparent; transition: all 0.15s; position: relative;
+    text-decoration: none; display: block; color: inherit;
+  }
+  .news-card:hover { background: var(--surface2); border-color: var(--border2); }
+  .news-card.new-item { animation: fadeSlide 0.5s ease; }
+  .news-card.new-item::after {
+    content: 'NEW';
+    position: absolute; top: 10px; right: 10px;
+    font-size: 9px; font-family: var(--mono); font-weight: 500;
+    color: var(--accent2); background: var(--accent2-bg);
+    border: 0.5px solid var(--accent2); border-radius: 10px; padding: 1px 5px;
+  }
+  @keyframes fadeSlide { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .news-source { font-size: 10px; font-family: var(--mono); color: var(--text3); margin-bottom: 4px; display: flex; align-items: center; gap: 5px; }
+  .news-source .sep { color: var(--border2); }
+  .news-title { font-size: 13px; font-weight: 500; color: var(--text); line-height: 1.55; margin-bottom: 5px; }
+  .news-desc { font-size: 11.5px; color: var(--text2); line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* states */
+  .state-msg { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 200px; gap: 10px; color: var(--text3); font-size: 13px; text-align: center; padding: 0 20px; }
+  .state-msg .icon { font-size: 26px; }
+  .spinner { width: 22px; height: 22px; border: 2px solid var(--border2); border-top-color: var(--accent1); border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── NOTIF BAR ── */
+  #notif-bar {
+    position: fixed; bottom: 24px; right: 24px; max-width: 300px;
+    background: var(--surface2); border: 0.5px solid var(--accent2);
+    border-radius: var(--radius); padding: 13px 15px; font-size: 13px; color: var(--text);
+    z-index: 999; display: none; animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  #notif-bar .notif-title { font-weight: 500; color: var(--accent2); margin-bottom: 3px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-left">
+    <div class="logo">뉴스<span>RADAR</span></div>
+    <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+    <div class="demo-badge" id="demo-badge">데모 모드</div>
+  </div>
+  <div class="header-right">
+    <span class="last-update" id="last-update-txt">—</span>
+    <button class="btn sm" onclick="toggleSetup()">⚙ API 설정</button>
+    <button class="btn primary sm" onclick="refreshAll()">↻ 새로고침</button>
+  </div>
+</header>
+
+<!-- API SETUP -->
+<div class="setup-panel" id="setup-panel">
+  <div class="setup-inner">
+    <div class="setup-title">네이버 검색 API 연결</div>
+    <div class="setup-sub">
+      Netlify Function 프록시 URL을 입력하면 실제 뉴스가 표시됩니다.<br>
+      설정 방법을 모르신다면 아래 <strong>단계별 가이드</strong>를 참고하세요 → 이 페이지 하단에 안내됩니다.
+    </div>
+    <div class="setup-grid">
+      <div class="field" style="grid-column: 1 / -1">
+        <label>NETLIFY FUNCTION URL</label>
+        <input type="text" id="proxy-url" placeholder="https://your-site.netlify.app/.netlify/functions/naver">
+      </div>
+      <div class="field">
+        <label>폴링 주기 (분)</label>
+        <select id="poll-interval">
+          <option value="1">1분</option>
+          <option value="2" selected>2분</option>
+          <option value="3">3분</option>
+          <option value="5">5분</option>
+        </select>
+      </div>
+    </div>
+    <div class="setup-actions">
+      <button class="btn primary" onclick="saveConfig()">저장 및 적용</button>
+      <button class="btn" onclick="clearConfig()">초기화 (데모 모드로)</button>
+      <button class="btn sm" onclick="toggleSetup()">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div class="poll-bar"><div class="poll-progress" id="poll-progress"></div></div>
+
+<main class="main">
+  <div class="grid">
+
+    <div class="col col1">
+      <div class="col-header">
+        <div class="col-title-row">
+          <div class="col-title"><div class="dot"></div>실시간 주요 뉴스 <span class="col-count" id="cnt-0">0건</span></div>
+          <button class="btn sm" onclick="fetchCol(0)">↻</button>
+        </div>
+        <div class="tags-wrap" id="tags-0"></div>
+        <div class="add-kw">
+          <input type="text" placeholder="키워드 추가..." id="kw-input-0" onkeydown="if(event.key==='Enter')addKeyword(0)">
+          <button class="btn sm" onclick="addKeyword(0)">+</button>
+        </div>
+      </div>
+      <div class="news-list" id="list-0"></div>
+    </div>
+
+    <div class="col col2">
+      <div class="col-header">
+        <div class="col-title-row">
+          <div class="col-title"><div class="dot"></div>멤버십 트렌드 <span class="col-count" id="cnt-1">0건</span></div>
+          <button class="btn sm" onclick="fetchCol(1)">↻</button>
+        </div>
+        <div class="tags-wrap" id="tags-1"></div>
+        <div class="add-kw">
+          <input type="text" placeholder="키워드 추가..." id="kw-input-1" onkeydown="if(event.key==='Enter')addKeyword(1)">
+          <button class="btn sm" onclick="addKeyword(1)">+</button>
+        </div>
+      </div>
+      <div class="news-list" id="list-1"></div>
+    </div>
+
+    <div class="col col3">
+      <div class="col-header">
+        <div class="col-title-row">
+          <div class="col-title"><div class="dot"></div>CJ 관련 뉴스 <span class="col-count" id="cnt-2">0건</span></div>
+          <button class="btn sm" onclick="fetchCol(2)">↻</button>
+        </div>
+        <div class="tags-wrap" id="tags-2"></div>
+        <div class="add-kw">
+          <input type="text" placeholder="키워드 추가..." id="kw-input-2" onkeydown="if(event.key==='Enter')addKeyword(2)">
+          <button class="btn sm" onclick="addKeyword(2)">+</button>
+        </div>
+      </div>
+      <div class="news-list" id="list-2"></div>
+    </div>
+
+  </div>
+</main>
+
+<div id="notif-bar">
+  <div class="notif-title">🔔 새 뉴스 감지</div>
+  <div id="notif-msg"></div>
+</div>
+
+<script>
+const DEFAULT_KEYWORDS = [
+  ['실시간 뉴스', '오늘 뉴스', '속보'],
+  ['OK캐쉬백', 'L포인트', 'H포인트', 'CJ ONE'],
+  ['CJ제일제당', 'CJ ENM', 'CJ대한통운']
+];
+
+let config = { proxyUrl: '', pollInterval: 2, demoMode: true };
+let keywords = [[], [], []];
+let seenLinks = [new Set(), new Set(), new Set()];
+let pollTimer = null, pollElapsed = 0, pollTotal = 120;
+
+// ── STORAGE ──
+function saveLS() {
+  localStorage.setItem('nrdr_kw', JSON.stringify(keywords));
+  localStorage.setItem('nrdr_cfg', JSON.stringify(config));
+}
+function loadLS() {
+  try {
+    const kw = localStorage.getItem('nrdr_kw');
+    if (kw) keywords = JSON.parse(kw);
+    const cf = localStorage.getItem('nrdr_cfg');
+    if (cf) Object.assign(config, JSON.parse(cf));
+  } catch(e) {}
+  keywords.forEach((k, i) => { if (!k.length) keywords[i] = [...DEFAULT_KEYWORDS[i]]; });
+  document.getElementById('proxy-url').value = config.proxyUrl || '';
+  document.getElementById('poll-interval').value = config.pollInterval || 2;
+  updateDemoBadge();
+}
+
+// ── CONFIG ──
+function saveConfig() {
+  config.proxyUrl = document.getElementById('proxy-url').value.trim();
+  config.pollInterval = parseInt(document.getElementById('poll-interval').value);
+  config.demoMode = !config.proxyUrl;
+  saveLS();
+  updateDemoBadge();
+  toggleSetup();
+  initPolling();
+  seenLinks = [new Set(), new Set(), new Set()];
+  refreshAll();
+}
+function clearConfig() {
+  config = { proxyUrl: '', pollInterval: 2, demoMode: true };
+  document.getElementById('proxy-url').value = '';
+  saveLS();
+  updateDemoBadge();
+  toggleSetup();
+  refreshAll();
+}
+function updateDemoBadge() {
+  document.getElementById('demo-badge').style.display = config.demoMode ? 'flex' : 'none';
+}
+
+// ── UI ──
+function toggleSetup() { document.getElementById('setup-panel').classList.toggle('open'); }
+
+// ── KEYWORDS ──
+function renderTags(i) {
+  const wrap = document.getElementById(`tags-${i}`);
+  wrap.innerHTML = '';
+  keywords[i].forEach((kw, j) => {
+    const tag = document.createElement('span');
+    tag.className = 'tag';
+    tag.innerHTML = `${kw}<span class="tag-del" onclick="removeKeyword(${i},${j})">×</span>`;
+    wrap.appendChild(tag);
+  });
+}
+function addKeyword(i) {
+  const inp = document.getElementById(`kw-input-${i}`);
+  const val = inp.value.trim();
+  if (!val || keywords[i].includes(val)) { inp.value = ''; return; }
+  keywords[i].push(val);
+  inp.value = '';
+  saveLS(); renderTags(i); fetchCol(i);
+}
+function removeKeyword(i, j) {
+  keywords[i].splice(j, 1);
+  saveLS(); renderTags(i); fetchCol(i);
+}
+
+// ── FETCH ──
+async function fetchNaverNews(query, display = 8) {
+  if (config.demoMode) return generateDemoNews(query, display);
+  const url = `${config.proxyUrl}?query=${encodeURIComponent(query)}&display=${display}&sort=date`;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`API 오류 ${resp.status}`);
+  return resp.json();
+}
+
+async function fetchCol(colIdx) {
+  const list = document.getElementById(`list-${colIdx}`);
+  if (!list.children.length || list.querySelector('.state-msg')) {
+    list.innerHTML = `<div class="state-msg"><div class="spinner"></div><span>불러오는 중...</span></div>`;
+  }
+  const kws = keywords[colIdx];
+  if (!kws.length) {
+    list.innerHTML = `<div class="state-msg"><div class="icon">🔍</div><span>키워드를 추가하세요</span></div>`;
+    return;
+  }
+  try {
+    const allItems = [];
+    for (const kw of kws) {
+      const data = await fetchNaverNews(kw, 8);
+      if (data.items) allItems.push(...data.items);
+    }
+    const seen = new Set();
+    const unique = allItems.filter(it => { if (seen.has(it.link)) return false; seen.add(it.link); return true; });
+    unique.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+    renderNews(colIdx, unique.slice(0, 30));
+  } catch(e) {
+    list.innerHTML = `<div class="state-msg"><div class="icon">⚠</div><span style="color:var(--red)">${e.message}</span></div>`;
+  }
+}
+
+// ── RENDER ──
+function clean(str) {
+  return (str || '').replace(/<\/?b>/g, '').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#39;/g,"'").trim();
+}
+function renderNews(colIdx, items) {
+  const list = document.getElementById(`list-${colIdx}`);
+  list.innerHTML = '';
+  let newCount = 0;
+  items.forEach(item => {
+    const isNew = !seenLinks[colIdx].has(item.link);
+    if (isNew) { seenLinks[colIdx].add(item.link); newCount++; }
+    const a = document.createElement('a');
+    a.className = 'news-card' + (isNew ? ' new-item' : '');
+    a.href = item.originallink || item.link;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    const title = clean(item.title);
+    const desc = clean(item.description);
+    const time = item.pubDate ? formatTime(new Date(item.pubDate)) : '';
+    const source = extractSource(item.originallink || item.link);
+    a.innerHTML = `
+      <div class="news-source">
+        <span>${source}</span>
+        ${time ? `<span class="sep">·</span><span>${time}</span>` : ''}
+      </div>
+      <div class="news-title">${title}</div>
+      ${desc ? `<div class="news-desc">${desc}</div>` : ''}
+    `;
+    list.appendChild(a);
+  });
+  document.getElementById(`cnt-${colIdx}`).textContent = `${items.length}건`;
+  if (newCount > 0) showNotif(colIdx, newCount);
+}
+
+// ── HELPERS ──
+function formatTime(date) {
+  const diff = Math.floor((Date.now() - date) / 60000);
+  if (diff < 1) return '방금 전';
+  if (diff < 60) return `${diff}분 전`;
+  if (diff < 1440) return `${Math.floor(diff/60)}시간 전`;
+  return date.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+}
+function extractSource(url) {
+  try {
+    const h = new URL(url).hostname.replace('www.', '');
+    const parts = h.split('.');
+    return parts.length >= 2 ? parts[parts.length - 2] : parts[0];
+  } catch { return '뉴스'; }
+}
+
+// ── NOTIF ──
+function showNotif(colIdx, count) {
+  const names = ['주요 뉴스', '멤버십', 'CJ'];
+  const bar = document.getElementById('notif-bar');
+  document.getElementById('notif-msg').textContent = `${names[colIdx]} 섹션에 새 뉴스 ${count}건`;
+  bar.style.display = 'block';
+  setTimeout(() => bar.style.display = 'none', 4000);
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification('뉴스RADAR', { body: `${names[colIdx]}: 새 뉴스 ${count}건` });
+  }
+}
+
+// ── POLLING ──
+function initPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTotal = (config.pollInterval || 2) * 60;
+  pollElapsed = 0;
+  pollTimer = setInterval(() => {
+    pollElapsed++;
+    document.getElementById('poll-progress').style.width = (pollElapsed / pollTotal * 100) + '%';
+    if (pollElapsed >= pollTotal) { pollElapsed = 0; refreshAll(); }
+  }, 1000);
+}
+function refreshAll() {
+  document.getElementById('last-update-txt').textContent = new Date().toLocaleTimeString('ko-KR');
+  [0,1,2].forEach(fetchCol);
+}
+
+// ── DEMO DATA ──
+// 데모 모드: 실제 기사 링크 없이 샘플 제목만 표시 (클릭 시 연결 안 됨은 정상)
+const DEMO_SOURCES = ['연합뉴스', '조선일보', '중앙일보', '한겨레', '머니투데이', '이데일리', '뉴스1', '아시아경제'];
+const DEMO_TITLES = {
+  '실시간 뉴스': [
+    { t: '코스피 장중 반등...외국인 매수세 유입', d: '코스피가 외국인 순매수에 힘입어 장중 반등에 성공했다. 전문가들은 단기 저항선 돌파 여부를 주목하고 있다.' },
+    { t: '정부, 내년 예산안 확정...복지 지출 역대 최대', d: '기획재정부가 내년도 예산안을 확정했다. 복지 분야 지출이 역대 최대 규모로 편성됐으며 R&D 예산도 증액됐다.' },
+    { t: '한미 정상회담 일정 조율 중...무역 현안 논의 예정', d: '한미 양국이 정상회담 일정을 조율하고 있다. 반도체·배터리 공급망 협력과 무역 현안이 핵심 의제가 될 전망이다.' },
+    { t: 'AI 반도체 수출 규제 완화 검토...업계 반색', d: '정부가 AI 반도체 관련 수출 규제 완화를 검토 중이라고 밝혔다. 업계는 글로벌 경쟁력 회복에 도움이 될 것이라며 환영했다.' },
+    { t: '환율 1,380원대 안정세...달러 약세 영향', d: '원·달러 환율이 1,380원대에서 안정세를 보이고 있다. 미국 달러 약세와 국내 경상수지 흑자가 주요 요인으로 분석된다.' },
+    { t: '소비자물가 상승률 3개월 만에 둔화', d: '통계청이 발표한 소비자물가 동향에 따르면 전월 대비 상승률이 3개월 만에 하락했다. 에너지 가격 안정이 영향을 미쳤다.' },
+    { t: '2분기 실적 발표 시즌 개막...대기업 성적표 주목', d: '국내 주요 대기업들의 2분기 실적 발표가 이번 주부터 시작된다. 반도체·배터리 업종의 회복 여부가 최대 관심사다.' }
+  ],
+  'OK캐쉬백': [
+    { t: 'OK캐쉬백, 편의점 제휴 확대...GS25·CU 추가', d: 'OK캐쉬백이 GS25·CU 등 주요 편의점 체인과 신규 제휴를 맺고 포인트 적립 혜택을 확대한다고 발표했다.' },
+    { t: 'SKT 오케이캐쉬백 앱 리뉴얼...AI 맞춤 혜택 추천', d: 'SKT가 OK캐쉬백 앱을 전면 개편했다. AI 기반 맞춤 혜택 추천 기능을 탑재해 사용자 편의를 높였다.' },
+    { t: 'OK캐쉬백 월간 이용자 500만 돌파', d: 'OK캐쉬백의 월간 활성 이용자수(MAU)가 사상 처음으로 500만명을 돌파했다. 온라인 가맹점 확대가 주효했다.' },
+    { t: '캐쉬백 포인트, 주유소·항공 마일리지 전환 가능', d: 'OK캐쉬백 포인트를 주요 주유소 결제와 항공사 마일리지로 전환할 수 있는 서비스가 시작됐다.' }
+  ],
+  'L포인트': [
+    { t: '롯데 L포인트, 오프라인 가맹점 1만개 추가', d: '롯데멤버스가 L포인트 오프라인 가맹점을 1만개 추가 확보했다. 외식·뷰티·의료 분야가 대폭 늘었다.' },
+    { t: 'L포인트 앱 전면 개편...UI 단순화·속도 개선', d: '롯데멤버스가 L포인트 앱을 전면 개편했다. 직관적인 UI와 로딩 속도 개선이 호평을 받고 있다.' },
+    { t: 'L포인트 연간 발급액 2조원 돌파', d: '롯데멤버스에 따르면 L포인트 연간 발급 규모가 처음으로 2조원을 넘어섰다. 롯데온 온라인 쇼핑 성장이 견인했다.' },
+    { t: 'L포인트-신한카드 제휴 혜택 강화', d: '롯데멤버스와 신한카드가 L포인트 적립률 상향 및 특별 프로모션을 골자로 한 제휴 혜택을 강화한다.' }
+  ],
+  'H포인트': [
+    { t: '현대백화점 H포인트, 현대몰 연동 강화', d: '현대백화점그룹이 H포인트와 현대몰 온라인 플랫폼 간 포인트 연동을 강화해 통합 쇼핑 경험을 제공한다.' },
+    { t: 'H포인트 VIP 등급 개편...프리미엄 서비스 확대', d: '현대백화점이 H포인트 VIP 등급 체계를 개편하고 퍼스널 쇼퍼·주차 무제한 등 프리미엄 서비스를 추가했다.' },
+    { t: 'H포인트 가맹점 3만개 돌파...생활 밀착 업종 집중', d: 'H포인트 가맹점이 3만개를 돌파했다. 마트·약국·병원 등 생활 밀착형 업종 확대에 집중했다.' },
+    { t: 'H포인트, 아시아나 마일리지 전환 서비스 시작', d: 'H포인트 적립 포인트를 아시아나항공 마일리지로 전환할 수 있는 서비스가 정식 출시됐다.' }
+  ],
+  'CJ ONE': [
+    { t: 'CJ ONE 통합 멤버십, CJ올리브영 연동 강화', d: 'CJ ONE이 CJ올리브영 포인트 통합 연동을 강화해 오프라인과 온라인 쇼핑 모두에서 혜택을 받을 수 있게 됐다.' },
+    { t: 'CJ ONE 포인트 유효기간 5년으로 연장', d: 'CJ그룹이 CJ ONE 포인트 유효기간을 기존 3년에서 5년으로 연장한다고 발표했다. 고객 이탈 방지 전략의 일환이다.' },
+    { t: 'CJ ONE, 그룹 전 계열사 통합 멤버십 완성', d: 'CJ제일제당·CJ ENM·CJ올리브영 등 그룹 전 계열사가 CJ ONE으로 통합되며 명실상부한 통합 멤버십이 완성됐다.' },
+    { t: 'CJ ONE 앱 MAU 300만 달성...구독형 서비스 준비', d: 'CJ ONE 앱 월간 활성 이용자가 300만명에 달했다. 회사는 월정액 구독형 프리미엄 서비스 도입을 검토 중이다.' }
+  ],
+  'CJ제일제당': [
+    { t: 'CJ제일제당 바이오사업 분기 매출 사상 최대', d: 'CJ제일제당 바이오사업부문이 이번 분기 매출 사상 최대치를 기록했다. 아미노산·핵산 글로벌 수요 증가가 주요 인이다.' },
+    { t: '비비고 만두, 미국 냉동만두 시장 점유율 1위', d: '비비고 만두가 미국 냉동만두 시장 점유율 1위를 공고히 했다. 현지화 제품 라인업 확장이 성공 요인으로 꼽힌다.' },
+    { t: 'CJ제일제당 2분기 영업이익 18% 증가', d: 'CJ제일제당이 발표한 2분기 실적에서 영업이익이 전년 동기 대비 18% 증가했다. 식품·바이오 두 부문 모두 호조였다.' },
+    { t: 'CJ제일제당, 건강기능식품 신제품 대거 출시', d: 'CJ제일제당이 건강기능식품 브랜드 라인업을 대폭 확대한다. 프로바이오틱스·단백질 보충제 신제품이 출시됐다.' }
+  ],
+  'CJ ENM': [
+    { t: 'CJ ENM, 글로벌 OTT 드라마 제작 투자 확대', d: 'CJ ENM이 글로벌 OTT 플랫폼 납품용 드라마 제작 투자를 대폭 늘린다. 넷플릭스·디즈니+ 동시 공략이 목표다.' },
+    { t: 'tvN 신드라마 첫 방영 시청률 12% 돌파', d: 'tvN에서 첫 방영된 신작 드라마가 시청률 12%를 기록했다. 동시간대 1위로 기대작으로 부상하고 있다.' },
+    { t: 'CJ ENM 음악사업 K팝 라이선스 수익 급증', d: 'CJ ENM 음악사업 부문의 K팝 글로벌 라이선스 수익이 전년 대비 40% 급증했다. 동남아·중동 시장 확대가 주요 인이다.' },
+    { t: 'CJ ENM-스튜디오드래곤 IP 협력 강화', d: 'CJ ENM과 스튜디오드래곤이 기존 IP를 활용한 리메이크·스핀오프 공동 제작 협력을 강화하기로 했다.' }
+  ],
+  'CJ대한통운': [
+    { t: 'CJ대한통운 AI 물류센터 자동화율 70% 달성', d: 'CJ대한통운이 AI 기반 자동화 물류센터 구축을 완료했다. 자동화율 70%를 달성해 처리 속도와 정확도가 크게 향상됐다.' },
+    { t: 'CJ대한통운 하루 택배 처리량 700만박스 돌파', d: 'CJ대한통운의 일평균 택배 처리량이 700만박스를 돌파했다. 이커머스 물량 급증과 자동화 설비 확충이 주요 요인이다.' },
+    { t: 'CJ대한통운, 전기 배송 트럭 1,000대 도입', d: 'CJ대한통운이 친환경 경영의 일환으로 전기 배송 트럭 1,000대를 도입한다. 2030년까지 탄소중립을 목표로 한다.' },
+    { t: 'CJ대한통운 동남아 물류망 베트남·인니 확장', d: 'CJ대한통운이 베트남과 인도네시아에 현지 물류 거점을 추가로 구축한다. 동남아 시장 공략을 본격화한다.' }
+  ],
+  'default': [
+    { t: '해당 키워드 관련 뉴스를 검색 중입니다', d: 'API 연결 후 실제 네이버 뉴스가 표시됩니다.' },
+    { t: '키워드 모니터링 설정 완료', d: '상단 API 설정에서 Netlify Function URL을 입력하면 실시간 뉴스를 확인할 수 있습니다.' }
+  ]
+};
+
+function generateDemoNews(query, display) {
+  const templates = DEMO_TITLES[query] || DEMO_TITLES['default'];
+  const items = [];
+  const now = Date.now();
+  for (let i = 0; i < Math.min(display, templates.length); i++) {
+    const tpl = templates[i];
+    const minAgo = Math.floor(Math.random() * 90) + i * 5;
+    const src = DEMO_SOURCES[Math.floor(Math.random() * DEMO_SOURCES.length)];
+    // 데모 링크는 빈 href → 클릭해도 이동 안 함 (정상)
+    items.push({
+      title: tpl.t,
+      link: '#demo',
+      originallink: '#demo',
+      description: tpl.d,
+      pubDate: new Date(now - minAgo * 60000).toUTCString()
+    });
+  }
+  return { items };
+}
+
+// ── INIT ──
+function init() {
+  loadLS();
+  [0,1,2].forEach(i => renderTags(i));
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+  initPolling();
+  refreshAll();
+}
+init();
+</script>
+</body>
+</html>
