@@ -207,30 +207,21 @@
   <div class="header-left">
     <div class="logo">뉴스<span>RADAR</span></div>
     <div class="live-badge"><div class="live-dot"></div>LIVE</div>
-    <div class="demo-badge" id="demo-badge">데모 모드</div>
   </div>
   <div class="header-right">
     <span class="last-update" id="last-update-txt">—</span>
-    <button class="btn sm" onclick="toggleSetup()">⚙ API 설정</button>
+    <button class="btn sm" onclick="toggleSetup()">⚙ 설정</button>
     <button class="btn primary sm" onclick="refreshAll()">↻ 새로고침</button>
   </div>
 </header>
 
-<!-- API SETUP -->
+<!-- 설정 패널: 폴링 주기만 조절 -->
 <div class="setup-panel" id="setup-panel">
   <div class="setup-inner">
-    <div class="setup-title">네이버 검색 API 연결</div>
-    <div class="setup-sub">
-      Netlify Function 프록시 URL을 입력하면 실제 뉴스가 표시됩니다.<br>
-      설정 방법을 모르신다면 아래 <strong>단계별 가이드</strong>를 참고하세요 → 이 페이지 하단에 안내됩니다.
-    </div>
-    <div class="setup-grid">
-      <div class="field" style="grid-column: 1 / -1">
-        <label>NETLIFY FUNCTION URL</label>
-        <input type="text" id="proxy-url" placeholder="https://your-site.netlify.app/.netlify/functions/naver">
-      </div>
+    <div class="setup-title">대시보드 설정</div>
+    <div class="setup-grid" style="max-width:260px">
       <div class="field">
-        <label>폴링 주기 (분)</label>
+        <label>자동 갱신 주기</label>
         <select id="poll-interval">
           <option value="1">1분</option>
           <option value="2" selected>2분</option>
@@ -240,8 +231,7 @@
       </div>
     </div>
     <div class="setup-actions">
-      <button class="btn primary" onclick="saveConfig()">저장 및 적용</button>
-      <button class="btn" onclick="clearConfig()">초기화 (데모 모드로)</button>
+      <button class="btn primary" onclick="saveConfig()">저장</button>
       <button class="btn sm" onclick="toggleSetup()">닫기</button>
     </div>
   </div>
@@ -312,7 +302,11 @@ const DEFAULT_KEYWORDS = [
   ['CJ제일제당', 'CJ ENM', 'CJ대한통운']
 ];
 
-let config = { proxyUrl: '', pollInterval: 2, demoMode: true };
+// ── Netlify Function URL을 여기에 입력하세요 ──────────────────
+const PROXY_URL = 'https://여러분사이트.netlify.app/.netlify/functions/naver';
+// ─────────────────────────────────────────────────────────────
+
+let config = { proxyUrl: PROXY_URL, pollInterval: 2, demoMode: false };
 let keywords = [[], [], []];
 let seenLinks = [new Set(), new Set(), new Set()];
 let pollTimer = null, pollElapsed = 0, pollTotal = 120;
@@ -327,19 +321,17 @@ function loadLS() {
     const kw = localStorage.getItem('nrdr_kw');
     if (kw) keywords = JSON.parse(kw);
     const cf = localStorage.getItem('nrdr_cfg');
-    if (cf) Object.assign(config, JSON.parse(cf));
+    if (cf) { const saved = JSON.parse(cf); config.pollInterval = saved.pollInterval || 2; }
   } catch(e) {}
   keywords.forEach((k, i) => { if (!k.length) keywords[i] = [...DEFAULT_KEYWORDS[i]]; });
-  document.getElementById('proxy-url').value = config.proxyUrl || '';
   document.getElementById('poll-interval').value = config.pollInterval || 2;
   updateDemoBadge();
 }
 
 // ── CONFIG ──
 function saveConfig() {
-  config.proxyUrl = document.getElementById('proxy-url').value.trim();
   config.pollInterval = parseInt(document.getElementById('poll-interval').value);
-  config.demoMode = !config.proxyUrl;
+  config.proxyUrl = PROXY_URL; config.demoMode = false;
   saveLS();
   updateDemoBadge();
   toggleSetup();
@@ -348,16 +340,13 @@ function saveConfig() {
   refreshAll();
 }
 function clearConfig() {
-  config = { proxyUrl: '', pollInterval: 2, demoMode: true };
-  document.getElementById('proxy-url').value = '';
+  config = { proxyUrl: PROXY_URL, pollInterval: 2, demoMode: false };
   saveLS();
   updateDemoBadge();
   toggleSetup();
   refreshAll();
 }
-function updateDemoBadge() {
-  document.getElementById('demo-badge').style.display = config.demoMode ? 'flex' : 'none';
-}
+function updateDemoBadge() {}
 
 // ── UI ──
 function toggleSetup() { document.getElementById('setup-panel').classList.toggle('open'); }
