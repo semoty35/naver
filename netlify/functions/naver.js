@@ -42,9 +42,11 @@ exports.handler = async function (event) {
   }
 
   // 네이버 검색 API 호출
+  // 큰따옴표로 감싸면 구문(phrase) 검색 → "CJ ONE" 처럼 정확히 일치하는 뉴스만 반환
+  const exactQuery = `"${query}"`;
   const apiUrl =
     `https://openapi.naver.com/v1/search/news.json` +
-    `?query=${encodeURIComponent(query)}&display=${display}&sort=${sort}`;
+    `?query=${encodeURIComponent(exactQuery)}&display=${display}&sort=${sort}`;
 
   try {
     const response = await fetch(apiUrl, {
