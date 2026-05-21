@@ -199,6 +199,57 @@
   }
   @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
   #notif-bar .notif-title { font-weight: 500; color: var(--accent2); margin-bottom: 3px; font-size: 12px; }
+
+  /* ── MOBILE TABS ── */
+  .mobile-tabs {
+    display: none;
+    background: var(--surface);
+    border-bottom: 0.5px solid var(--border2);
+    padding: 0 16px;
+  }
+  .mobile-tabs-inner {
+    display: flex;
+    gap: 0;
+  }
+  .tab-btn {
+    flex: 1;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 12px 8px;
+    font-size: 12px; font-weight: 500; font-family: var(--sans);
+    color: var(--text3);
+    background: none; border: none; cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .tab-btn .tab-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+  .tab-btn:nth-child(1) .tab-dot { background: var(--accent1); }
+  .tab-btn:nth-child(2) .tab-dot { background: var(--accent2); }
+  .tab-btn:nth-child(3) .tab-dot { background: var(--accent3); }
+  .tab-btn.active { color: var(--text); }
+  .tab-btn:nth-child(1).active { border-bottom-color: var(--accent1); }
+  .tab-btn:nth-child(2).active { border-bottom-color: var(--accent2); }
+  .tab-btn:nth-child(3).active { border-bottom-color: var(--accent3); }
+  .tab-count { font-size: 10px; font-family: var(--mono); color: var(--text3); background: var(--surface2); padding: 1px 5px; border-radius: 10px; }
+
+  @media (max-width: 600px) {
+    .mobile-tabs { display: block; }
+    .main { padding: 8px 8px 0; height: calc(100dvh - 110px); overflow: hidden; }
+    .grid { display: block; height: 100%; }
+    .col {
+      display: none;
+      min-height: unset;
+      height: 100%;
+      border-radius: var(--radius);
+      border: 0.5px solid var(--border);
+    }
+    .col.tab-active { display: flex; }
+    .col.tab-active .news-list { flex: 1; overflow-y: auto; }
+    .header { padding: 10px 14px; }
+    .header .logo { font-size: 14px; }
+    .last-update { display: none; }
+    .btn.sm { padding: 5px 10px; }
+  }
 </style>
 </head>
 <body>
@@ -239,10 +290,28 @@
 
 <div class="poll-bar"><div class="poll-progress" id="poll-progress"></div></div>
 
+<!-- 모바일 탭 (600px 이하에서만 표시) -->
+<div class="mobile-tabs" id="mobile-tabs">
+  <div class="mobile-tabs-inner">
+    <button class="tab-btn active" onclick="switchTab(0)">
+      <div class="tab-dot"></div>주요뉴스
+      <span class="tab-count" id="tab-cnt-0">0</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab(1)">
+      <div class="tab-dot"></div>멤버십
+      <span class="tab-count" id="tab-cnt-1">0</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab(2)">
+      <div class="tab-dot"></div>CJ
+      <span class="tab-count" id="tab-cnt-2">0</span>
+    </button>
+  </div>
+</div>
+
 <main class="main">
   <div class="grid">
 
-    <div class="col col1">
+    <div class="col col1 tab-active" id="col-panel-0">
       <div class="col-header">
         <div class="col-title-row">
           <div class="col-title"><div class="dot"></div>실시간 주요 뉴스 <span class="col-count" id="cnt-0">0건</span></div>
@@ -257,7 +326,7 @@
       <div class="news-list" id="list-0"></div>
     </div>
 
-    <div class="col col2">
+    <div class="col col2" id="col-panel-1">
       <div class="col-header">
         <div class="col-title-row">
           <div class="col-title"><div class="dot"></div>멤버십 트렌드 <span class="col-count" id="cnt-1">0건</span></div>
@@ -272,7 +341,7 @@
       <div class="news-list" id="list-1"></div>
     </div>
 
-    <div class="col col3">
+    <div class="col col3" id="col-panel-2">
       <div class="col-header">
         <div class="col-title-row">
           <div class="col-title"><div class="dot"></div>CJ 관련 뉴스 <span class="col-count" id="cnt-2">0건</span></div>
@@ -440,6 +509,10 @@ function renderNews(colIdx, items) {
     list.appendChild(a);
   });
   document.getElementById(`cnt-${colIdx}`).textContent = `${items.length}건`;
+  const tabCnt = document.getElementById(`tab-cnt-${colIdx}`);
+  if (tabCnt) tabCnt.textContent = items.length;
+  const tc = document.getElementById(`tab-cnt-${colIdx}`);
+  if (tc) tc.textContent = items.length;
   if (newCount > 0) showNotif(colIdx, newCount);
 }
 
@@ -566,6 +639,22 @@ function generateDemoNews(query, display) {
     });
   }
   return { items };
+}
+
+
+// ── MOBILE TABS ──
+let activeTab = 0;
+function switchTab(idx) {
+  activeTab = idx;
+  [0,1,2].forEach(i => {
+    const panel = document.getElementById(`col-panel-${i}`);
+    const btn = document.querySelectorAll('.tab-btn')[i];
+    if (panel) panel.classList.toggle('tab-active', i === idx);
+    if (btn) btn.classList.toggle('active', i === idx);
+  });
+  // 해당 탭에 데이터 없으면 로드
+  const list = document.getElementById(`list-${idx}`);
+  if (list && (!list.children.length || list.querySelector('.state-msg'))) fetchCol(idx);
 }
 
 // ── INIT ──
